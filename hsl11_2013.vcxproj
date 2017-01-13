@@ -447,7 +447,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="hsl.fx">
+    <None Include="Media\hsl.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

@@ -7,3 +7,5 @@ ipch
 *.db
 *.ilk
 *.opendb
+*.cso
+*.exe
