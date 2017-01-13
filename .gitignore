@@ -1,0 +1,9 @@
+Intermediate
+ipch
+.vs
+*.iobj
+*.ipdb
+*.pdb
+*.db
+*.ilk
+*.opendb
