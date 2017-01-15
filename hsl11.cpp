@@ -14,6 +14,7 @@
 #include "SDKmisc.h"
 #include "SDKmesh.h"
 #include "resource.h"
+#include "texture.h"
 
 #pragma warning( disable : 4100 )
 
@@ -35,6 +36,8 @@ ID3D11PixelShader*          g_pPixelShader11 = nullptr;
 ID3D11InputLayout*          g_pLayout11 = nullptr;
 ID3D11SamplerState*         g_pSamLinear = nullptr;
 
+Texture						g_photo;
+
 //--------------------------------------------------------------------------------------
 // Constant buffers
 //--------------------------------------------------------------------------------------
@@ -43,20 +46,10 @@ struct CB_VS_PER_OBJECT
 {
     XMFLOAT4X4  m_mWorldViewProjection;
     XMFLOAT4X4  m_mWorld;
-    XMFLOAT4    m_MaterialAmbientColor;
-    XMFLOAT4    m_MaterialDiffuseColor;
-};
-
-struct CB_VS_PER_FRAME
-{
-    XMFLOAT3    m_vLightDir;
-    float       m_fTime;
-    XMFLOAT4    m_LightDiffuse;
 };
 #pragma pack(pop)
 
 ID3D11Buffer*                       g_pcbVSPerObject11 = nullptr;
-ID3D11Buffer*                       g_pcbVSPerFrame11 = nullptr;
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -224,8 +217,7 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
     const D3D11_INPUT_ELEMENT_DESC layout[] =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
     V_RETURN( pd3dDevice->CreateInputLayout( layout, ARRAYSIZE( layout ), pVertexShaderBuffer->GetBufferPointer(),
@@ -258,11 +250,8 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
     V_RETURN( pd3dDevice->CreateBuffer( &cbDesc, nullptr, &g_pcbVSPerObject11 ) );
     DXUT_SetDebugName( g_pcbVSPerObject11, "CB_VS_PER_OBJECT" );
 
-    cbDesc.ByteWidth = sizeof( CB_VS_PER_FRAME );
-    V_RETURN( pd3dDevice->CreateBuffer( &cbDesc, nullptr, &g_pcbVSPerFrame11 ) );
-    DXUT_SetDebugName( g_pcbVSPerFrame11, "CB_VS_PER_FRAME" );
-
     // Create other render resources here
+	V_RETURN(g_photo.Init(pd3dDevice));
 
     // Setup the camera's view parameters
     static const XMVECTORF32 s_vecEye = { 0.0f, 0.0f, -5.0f, 0.f };
@@ -329,20 +318,11 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
     // Set the constant buffers
     HRESULT hr;
     D3D11_MAPPED_SUBRESOURCE MappedResource;
-    V( pd3dImmediateContext->Map( g_pcbVSPerFrame11, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource ) );
-    auto pVSPerFrame = reinterpret_cast<CB_VS_PER_FRAME*>( MappedResource.pData );
-    pVSPerFrame->m_vLightDir = XMFLOAT3( 0,0.707f,-0.707f );
-    pVSPerFrame->m_fTime = (float)fTime;
-    pVSPerFrame->m_LightDiffuse = XMFLOAT4( 1.f, 1.f, 1.f, 1.f );
-    pd3dImmediateContext->Unmap( g_pcbVSPerFrame11, 0 );
-    pd3dImmediateContext->VSSetConstantBuffers( 1, 1, &g_pcbVSPerFrame11 );
 
     V( pd3dImmediateContext->Map( g_pcbVSPerObject11, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource ) );
     auto pVSPerObject = reinterpret_cast<CB_VS_PER_OBJECT*>( MappedResource.pData );
     XMStoreFloat4x4( &pVSPerObject->m_mWorldViewProjection, XMMatrixTranspose( mWorldViewProjection ) );
     XMStoreFloat4x4( &pVSPerObject->m_mWorld,  XMMatrixTranspose( mWorld ) );
-    pVSPerObject->m_MaterialAmbientColor = XMFLOAT4( 0.3f, 0.3f, 0.3f, 1.0f );
-    pVSPerObject->m_MaterialDiffuseColor = XMFLOAT4( 0.7f, 0.7f, 0.7f, 1.0f );
     pd3dImmediateContext->Unmap( g_pcbVSPerObject11, 0 );
     pd3dImmediateContext->VSSetConstantBuffers( 0, 1, &g_pcbVSPerObject11 );
 
@@ -353,6 +333,7 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
     pd3dImmediateContext->PSSetSamplers( 0, 1, &g_pSamLinear );
 
     // Render objects here...
+	g_photo.Render(pd3dImmediateContext);
 
     DXUT_BeginPerfEvent( DXUT_PERFEVENTCOLOR, L"HUD / Stats" );
     g_HUD.OnRender( fElapsedTime );
@@ -395,9 +376,8 @@ void CALLBACK OnD3D11DestroyDevice( void* pUserContext )
     SAFE_RELEASE( g_pSamLinear );
 
     // Delete additional render resources here...
-
+	g_photo.OnD3D11DestroyDevice();
     SAFE_RELEASE( g_pcbVSPerObject11 );
-    SAFE_RELEASE( g_pcbVSPerFrame11 );
 }
 
 
