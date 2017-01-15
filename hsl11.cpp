@@ -15,6 +15,7 @@
 #include "SDKmesh.h"
 #include "resource.h"
 #include "texture.h"
+#include "UI.h"
 
 #pragma warning( disable : 4100 )
 
@@ -28,7 +29,6 @@ CDXUTDialogResourceManager  g_DialogResourceManager; // manager for shared resou
 CD3DSettingsDlg             g_SettingsDlg;          // Device settings dialog
 CDXUTTextHelper*            g_pTxtHelper = nullptr;
 CDXUTDialog                 g_HUD;                  // dialog for standard controls
-CDXUTDialog                 g_SampleUI;             // dialog for sample specific controls
 
 // Direct3D 11 resources
 ID3D11VertexShader*         g_pVertexShader11 = nullptr;
@@ -37,19 +37,25 @@ ID3D11InputLayout*          g_pLayout11 = nullptr;
 ID3D11SamplerState*         g_pSamLinear = nullptr;
 
 Texture						g_photo;
+UI							g_UI;
 
 //--------------------------------------------------------------------------------------
 // Constant buffers
 //--------------------------------------------------------------------------------------
 #pragma pack(push,1)
-struct CB_VS_PER_OBJECT
+struct CBuffer_VS
 {
     XMFLOAT4X4  m_mWorldViewProjection;
-    XMFLOAT4X4  m_mWorld;
+};
+struct CBuffer_PS
+{
+	XMFLOAT4    m_offset;
+	XMFLOAT4    m_threshold;
 };
 #pragma pack(pop)
 
-ID3D11Buffer*                       g_pcbVSPerObject11 = nullptr;
+ID3D11Buffer* g_pcbVS = nullptr;
+ID3D11Buffer* g_pcbPS = nullptr;
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -134,7 +140,7 @@ void InitApp()
 {
     g_SettingsDlg.Init( &g_DialogResourceManager );
     g_HUD.Init( &g_DialogResourceManager );
-    g_SampleUI.Init( &g_DialogResourceManager );
+    g_UI.Init( &g_DialogResourceManager );
 
     g_HUD.SetCallback( OnGUIEvent );
     int iY = 30;
@@ -143,8 +149,6 @@ void InitApp()
     g_HUD.AddButton( IDC_CHANGEDEVICE, L"Change device (F2)", 0, iY += iYo, 170, 22, VK_F2 );
     g_HUD.AddButton( IDC_TOGGLEREF, L"Toggle REF (F3)", 0, iY += iYo, 170, 22, VK_F3 );
     g_HUD.AddButton( IDC_TOGGLEWARP, L"Toggle WARP (F4)", 0, iY += iYo, 170, 22, VK_F4 );
-
-    g_SampleUI.SetCallback( OnGUIEvent ); iY = 10;
 }
 
 
@@ -201,7 +205,7 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
                                    &pVertexShaderBuffer ) );
 
     ID3DBlob* pPixelShaderBuffer = nullptr;
-    V_RETURN( DXUTCompileFromFile( L"hsl.hlsl", nullptr, "RenderScenePS", "ps_4_0_level_9_1", dwShaderFlags, 0, 
+    V_RETURN( DXUTCompileFromFile( L"hsl.hlsl", nullptr, "RenderScenePS", "ps_4_0_level_9_3", dwShaderFlags, 0, 
                                    &pPixelShaderBuffer ) );
 
     // Create the shaders
@@ -234,7 +238,7 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
     samDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     samDesc.AddressU = samDesc.AddressV = samDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
     samDesc.MaxAnisotropy = 1;
-    samDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+    samDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
     samDesc.MaxLOD = D3D11_FLOAT32_MAX;
     V_RETURN( pd3dDevice->CreateSamplerState( &samDesc, &g_pSamLinear ) );
     DXUT_SetDebugName( g_pSamLinear, "Linear" );
@@ -246,9 +250,13 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
     cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
     cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
-    cbDesc.ByteWidth = sizeof( CB_VS_PER_OBJECT );
-    V_RETURN( pd3dDevice->CreateBuffer( &cbDesc, nullptr, &g_pcbVSPerObject11 ) );
-    DXUT_SetDebugName( g_pcbVSPerObject11, "CB_VS_PER_OBJECT" );
+	cbDesc.ByteWidth = sizeof(CBuffer_VS);
+	V_RETURN(pd3dDevice->CreateBuffer(&cbDesc, nullptr, &g_pcbVS));
+	DXUT_SetDebugName(g_pcbVS, "CB_VS");
+
+	cbDesc.ByteWidth = sizeof(CBuffer_PS);
+	V_RETURN(pd3dDevice->CreateBuffer(&cbDesc, nullptr, &g_pcbPS));
+	DXUT_SetDebugName(g_pcbPS, "CB_PS");
 
     // Create other render resources here
 	V_RETURN(g_photo.Init(pd3dDevice));
@@ -282,8 +290,8 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 
     g_HUD.SetLocation( pBackBufferSurfaceDesc->Width - 170, 0 );
     g_HUD.SetSize( 170, 170 );
-    g_SampleUI.SetLocation( pBackBufferSurfaceDesc->Width - 170, pBackBufferSurfaceDesc->Height - 300 );
-    g_SampleUI.SetSize( 170, 300 );
+
+	g_UI.Reset(pBackBufferSurfaceDesc);
 
     return S_OK;
 }
@@ -319,12 +327,18 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
     HRESULT hr;
     D3D11_MAPPED_SUBRESOURCE MappedResource;
 
-    V( pd3dImmediateContext->Map( g_pcbVSPerObject11, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource ) );
-    auto pVSPerObject = reinterpret_cast<CB_VS_PER_OBJECT*>( MappedResource.pData );
-    XMStoreFloat4x4( &pVSPerObject->m_mWorldViewProjection, XMMatrixTranspose( mWorldViewProjection ) );
-    XMStoreFloat4x4( &pVSPerObject->m_mWorld,  XMMatrixTranspose( mWorld ) );
-    pd3dImmediateContext->Unmap( g_pcbVSPerObject11, 0 );
-    pd3dImmediateContext->VSSetConstantBuffers( 0, 1, &g_pcbVSPerObject11 );
+    V( pd3dImmediateContext->Map( g_pcbVS, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource ) );
+    auto pVS = reinterpret_cast<CBuffer_VS*>( MappedResource.pData );
+	XMStoreFloat4x4(&pVS->m_mWorldViewProjection, XMMatrixTranspose(mWorldViewProjection));
+    pd3dImmediateContext->Unmap( g_pcbVS, 0 );
+	pd3dImmediateContext->VSSetConstantBuffers(0, 1, &g_pcbVS);
+
+	V(pd3dImmediateContext->Map(g_pcbPS, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
+	auto pPS = reinterpret_cast<CBuffer_PS*>(MappedResource.pData);
+	pPS->m_offset = g_UI.getOffset();
+	pPS->m_threshold = g_UI.getThreshold();
+	pd3dImmediateContext->Unmap(g_pcbPS, 0);
+	pd3dImmediateContext->PSSetConstantBuffers(1, 1, &g_pcbPS);
 
     // Set render resources
     pd3dImmediateContext->IASetInputLayout( g_pLayout11 );
@@ -337,7 +351,7 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
     DXUT_BeginPerfEvent( DXUT_PERFEVENTCOLOR, L"HUD / Stats" );
     g_HUD.OnRender( fElapsedTime );
-    g_SampleUI.OnRender( fElapsedTime );
+    g_UI.OnRender( fElapsedTime );
     RenderText();
     DXUT_EndPerfEvent();
 
@@ -377,7 +391,8 @@ void CALLBACK OnD3D11DestroyDevice( void* pUserContext )
 
     // Delete additional render resources here...
 	g_photo.OnD3D11DestroyDevice();
-    SAFE_RELEASE( g_pcbVSPerObject11 );
+	SAFE_RELEASE(g_pcbVS);
+	SAFE_RELEASE(g_pcbPS);
 }
 
 
@@ -422,7 +437,7 @@ LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, bo
     *pbNoFurtherProcessing = g_HUD.MsgProc( hWnd, uMsg, wParam, lParam );
     if( *pbNoFurtherProcessing )
         return 0;
-    *pbNoFurtherProcessing = g_SampleUI.MsgProc( hWnd, uMsg, wParam, lParam );
+    *pbNoFurtherProcessing = g_UI.MsgProc( hWnd, uMsg, wParam, lParam );
     if( *pbNoFurtherProcessing )
         return 0;
 

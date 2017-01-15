@@ -18,7 +18,7 @@ HRESULT Texture::Init(ID3D11Device* pd3dDevice) {
 		fileSelected = true;
 	}
 	/**
-	swprintf_s(m_pSrcFile, 256, L"lena.png");
+	swprintf_s(m_pSrcFile, 256, L"test.png");
 	/**/
 
 	HRESULT hr;

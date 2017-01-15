@@ -425,6 +425,7 @@
   <ItemGroup>
     <CLInclude Include="resource.h" />
     <ClInclude Include="texture.h" />
+    <ClInclude Include="UI.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include=".\DXUT\Core\DXUT_2013.vcxproj">
@@ -447,6 +448,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="texture.cpp" />
+    <ClCompile Include="UI.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Media\hsl.hlsl">
