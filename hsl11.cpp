@@ -238,7 +238,7 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
     samDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     samDesc.AddressU = samDesc.AddressV = samDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
     samDesc.MaxAnisotropy = 1;
-    samDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    samDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
     samDesc.MaxLOD = D3D11_FLOAT32_MAX;
     V_RETURN( pd3dDevice->CreateSamplerState( &samDesc, &g_pSamLinear ) );
     DXUT_SetDebugName( g_pSamLinear, "Linear" );

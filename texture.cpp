@@ -1,6 +1,6 @@
 #include "DXUT.h"
 #include "texture.h"
-#include "SDKmisc.h"
+#include "WICTextureLoader.h"
 
 HRESULT Texture::Init(ID3D11Device* pd3dDevice) {
 	/**/
@@ -9,12 +9,12 @@ HRESULT Texture::Init(ID3D11Device* pd3dDevice) {
 		ZeroMemory(&ofn, sizeof(ofn));
 		ofn.lStructSize = sizeof(ofn);
 		ofn.lpstrFile = m_pSrcFile;
-		ofn.lpstrFile[0] = '0';
+		ofn.lpstrFile[0] = 0;
 		ofn.lpstrFilter = TEXT("Í¼Æ¬ÎÄ¼þ\0*.jpg;*.bmp;*.png;*.tif\0");
 		ofn.lpstrInitialDir = TEXT(".\\");
 		ofn.nMaxFile = MAX_PATH;
 		ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-		if (!GetOpenFileName(&ofn)) return E_FAIL;
+		if (!GetOpenFileName(&ofn)) return S_OK;
 		fileSelected = true;
 	}
 	/**
@@ -22,7 +22,9 @@ HRESULT Texture::Init(ID3D11Device* pd3dDevice) {
 	/**/
 
 	HRESULT hr;
-	V_RETURN(DXUTCreateShaderResourceViewFromFile(pd3dDevice, m_pSrcFile, &m_pTextureRV));
+	V_RETURN(DirectX::CreateWICTextureFromFileEx(pd3dDevice, nullptr, m_pSrcFile, 0,
+		D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, true,
+		nullptr, &m_pTextureRV));
 	
 	ID3D11Texture2D *texture2d = 0;
 	ID3D11Resource *res;
