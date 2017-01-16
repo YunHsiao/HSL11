@@ -13,7 +13,7 @@ public:
 	HRESULT Render(ID3D11DeviceContext* pImmediateContext);
 private:
 	bool fileSelected;
-	TCHAR m_pSrcFile[256];
+	TCHAR m_pSrcFile[MAX_PATH];
 	ID3D11ShaderResourceView* m_pTextureRV;
 	ID3D11Buffer *m_pVB;
 	UINT m_stride, m_offset;
