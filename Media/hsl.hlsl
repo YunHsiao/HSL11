@@ -58,11 +58,23 @@ float4 HSL2RGB(float4 hsl)
     return float4(d * cc + hsl.z, hsl.a);
 }
 
+float4 SRGB2RGB(float4 srgb)
+{
+    float3 rgb = lerp(pow((srgb.rgb + .055f) / 1.055f, 2.4f), srgb.rgb / 12.92f, step(srgb.rgb, .04045f));
+    return float4(rgb, srgb.a);
+}
+
+float4 RGB2SRGB(float4 rgb)
+{
+    float3 srgb = lerp(pow(rgb.rgb, 1.f / 2.4f) * 1.055f - .055f, rgb.rgb * 12.92f, step(rgb.rgb, .00304f));
+    return float4(srgb, rgb.a);
+}
+
 float4 RenderScenePS(VS_OUTPUT In) : SV_TARGET
 {
     bool valid;
     float blend = 1.f, t;
-    float4 c = g_txDiffuse.Sample(g_samLinear, In.TextureUV);
+    float4 c = RGB2SRGB(g_txDiffuse.Sample(g_samLinear, In.TextureUV));
     /** LIGHTNESS: all colors **/
     if (threshold.x < 0.f)
     {
@@ -144,5 +156,5 @@ float4 RenderScenePS(VS_OUTPUT In) : SV_TARGET
     hsl.y = saturate(hsl.y);
     /**/
 
-    return HSL2RGB(hsl);
+    return SRGB2RGB(HSL2RGB(hsl));
 }
