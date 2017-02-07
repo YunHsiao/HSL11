@@ -29,34 +29,9 @@ CDXUTDialogResourceManager  g_DialogResourceManager; // manager for shared resou
 CD3DSettingsDlg             g_SettingsDlg;          // Device settings dialog
 CDXUTTextHelper*            g_pTxtHelper = nullptr;
 CDXUTDialog                 g_HUD;                  // dialog for standard controls
-ID3D11Device*				g_pd3dDevice;
-
-// Direct3D 11 resources
-ID3D11VertexShader*         g_pVertexShader11 = nullptr;
-ID3D11PixelShader*          g_pPixelShader11 = nullptr;
-ID3D11InputLayout*          g_pLayout11 = nullptr;
-ID3D11SamplerState*         g_pSamLinear = nullptr;
 
 Texture						g_photo;
 UI							g_UI;
-
-//--------------------------------------------------------------------------------------
-// Constant buffers
-//--------------------------------------------------------------------------------------
-#pragma pack(push,1)
-struct CBuffer_VS
-{
-    XMFLOAT4X4  m_mWorldViewProjection;
-};
-struct CBuffer_PS
-{
-	XMFLOAT4    m_offset;
-	XMFLOAT4    m_threshold;
-};
-#pragma pack(pop)
-
-ID3D11Buffer* g_pcbVS = nullptr;
-ID3D11Buffer* g_pcbPS = nullptr;
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -179,57 +154,6 @@ bool CALLBACK IsD3D11DeviceAcceptable( const CD3D11EnumAdapterInfo *AdapterInfo,
     return true;
 }
 
-HRESULT InitShader( ID3D11Device* pd3dDevice )
-{
-	HRESULT hr;
-	SAFE_RELEASE(g_pVertexShader11);
-	SAFE_RELEASE(g_pPixelShader11);
-	SAFE_RELEASE(g_pLayout11);
-
-	// Read the HLSL file
-	// You should use the lowest possible shader profile for your shader to enable various feature levels. These
-	// shaders are simple enough to work well within the lowest possible profile, and will run on all feature levels
-
-	DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
-#ifdef _DEBUG
-	// Disable optimizations to further improve shader debugging
-	dwShaderFlags |= D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-	ID3DBlob* pVertexShaderBuffer = nullptr;
-	V_RETURN(DXUTCompileFromFile(L"hsl.hlsl", nullptr, "RenderSceneVS", "vs_4_0_level_9_1", dwShaderFlags, 0,
-		&pVertexShaderBuffer));
-
-	ID3DBlob* pPixelShaderBuffer = nullptr;
-	V_RETURN(DXUTCompileFromFile(L"hsl.hlsl", nullptr, "RenderScenePS", "ps_4_0_level_9_3", dwShaderFlags, 0,
-		&pPixelShaderBuffer));
-
-	// Create the shaders
-	V_RETURN(pd3dDevice->CreateVertexShader(pVertexShaderBuffer->GetBufferPointer(),
-		pVertexShaderBuffer->GetBufferSize(), nullptr, &g_pVertexShader11));
-	DXUT_SetDebugName(g_pVertexShader11, "RenderSceneVS");
-
-	V_RETURN(pd3dDevice->CreatePixelShader(pPixelShaderBuffer->GetBufferPointer(),
-		pPixelShaderBuffer->GetBufferSize(), nullptr, &g_pPixelShader11));
-	DXUT_SetDebugName(g_pPixelShader11, "RenderScenePS");
-
-	// Create a layout for the object data
-	const D3D11_INPUT_ELEMENT_DESC layout[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-
-	V_RETURN(pd3dDevice->CreateInputLayout(layout, ARRAYSIZE(layout), pVertexShaderBuffer->GetBufferPointer(),
-		pVertexShaderBuffer->GetBufferSize(), &g_pLayout11));
-	DXUT_SetDebugName(g_pLayout11, "Primary");
-
-	// No longer need the shader blobs
-	SAFE_RELEASE(pVertexShaderBuffer);
-	SAFE_RELEASE(pPixelShaderBuffer);
-
-	return S_OK;
-}
-
 //--------------------------------------------------------------------------------------
 // Create any D3D11 resources that aren't dependant on the back buffer
 //--------------------------------------------------------------------------------------
@@ -237,40 +161,11 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
                                      void* pUserContext )
 {
     HRESULT hr;
-	g_pd3dDevice = pd3dDevice;
 
     auto pd3dImmediateContext = DXUTGetD3D11DeviceContext();
     V_RETURN( g_DialogResourceManager.OnD3D11CreateDevice( pd3dDevice, pd3dImmediateContext ) );
     V_RETURN( g_SettingsDlg.OnD3D11CreateDevice( pd3dDevice ) );
     g_pTxtHelper = new CDXUTTextHelper( pd3dDevice, pd3dImmediateContext, &g_DialogResourceManager, 15 );
-
-	V_RETURN( InitShader( pd3dDevice ) );
-
-    // Create state objects
-    D3D11_SAMPLER_DESC samDesc;
-    ZeroMemory( &samDesc, sizeof(samDesc) );
-    samDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    samDesc.AddressU = samDesc.AddressV = samDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    samDesc.MaxAnisotropy = 1;
-    samDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
-    samDesc.MaxLOD = D3D11_FLOAT32_MAX;
-    V_RETURN( pd3dDevice->CreateSamplerState( &samDesc, &g_pSamLinear ) );
-    DXUT_SetDebugName( g_pSamLinear, "Linear" );
-
-    // Create constant buffers
-    D3D11_BUFFER_DESC cbDesc;
-    ZeroMemory( &cbDesc, sizeof(cbDesc) );
-    cbDesc.Usage = D3D11_USAGE_DYNAMIC;
-    cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-    cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-	cbDesc.ByteWidth = sizeof(CBuffer_VS);
-	V_RETURN(pd3dDevice->CreateBuffer(&cbDesc, nullptr, &g_pcbVS));
-	DXUT_SetDebugName(g_pcbVS, "CB_VS");
-
-	cbDesc.ByteWidth = sizeof(CBuffer_PS);
-	V_RETURN(pd3dDevice->CreateBuffer(&cbDesc, nullptr, &g_pcbPS));
-	DXUT_SetDebugName(g_pcbPS, "CB_PS");
 
     // Create other render resources here
 	V_RETURN(g_photo.Init(pd3dDevice));
@@ -336,32 +231,11 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
     XMMATRIX mView = g_Camera.GetViewMatrix();
     XMMATRIX mProj = g_Camera.GetProjMatrix();
     XMMATRIX mWorldViewProjection = mWorld * mView * mProj;
-
-    // Set the constant buffers
-    HRESULT hr;
-    D3D11_MAPPED_SUBRESOURCE MappedResource;
-
-    V( pd3dImmediateContext->Map( g_pcbVS, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource ) );
-    auto pVS = reinterpret_cast<CBuffer_VS*>( MappedResource.pData );
-	XMStoreFloat4x4(&pVS->m_mWorldViewProjection, XMMatrixTranspose(mWorldViewProjection));
-    pd3dImmediateContext->Unmap( g_pcbVS, 0 );
-	pd3dImmediateContext->VSSetConstantBuffers(0, 1, &g_pcbVS);
-
-	V(pd3dImmediateContext->Map(g_pcbPS, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
-	auto pPS = reinterpret_cast<CBuffer_PS*>(MappedResource.pData);
-	pPS->m_offset = g_UI.getOffset();
-	pPS->m_threshold = g_UI.getThreshold();
-	pd3dImmediateContext->Unmap(g_pcbPS, 0);
-	pd3dImmediateContext->PSSetConstantBuffers(1, 1, &g_pcbPS);
-
-    // Set render resources
-    pd3dImmediateContext->IASetInputLayout( g_pLayout11 );
-    pd3dImmediateContext->VSSetShader( g_pVertexShader11, nullptr, 0 );
-    pd3dImmediateContext->PSSetShader( g_pPixelShader11, nullptr, 0 );
-    pd3dImmediateContext->PSSetSamplers( 0, 1, &g_pSamLinear );
+	XMFLOAT4 offset = g_UI.getOffset();
+	XMFLOAT4 threshold = g_UI.getThreshold();
 
     // Render objects here...
-	g_photo.Render(pd3dImmediateContext);
+	g_photo.Render(pd3dImmediateContext, mWorldViewProjection, offset, threshold);
 
     DXUT_BeginPerfEvent( DXUT_PERFEVENTCOLOR, L"HUD / Stats" );
     g_HUD.OnRender( fElapsedTime );
@@ -398,15 +272,8 @@ void CALLBACK OnD3D11DestroyDevice( void* pUserContext )
     DXUTGetGlobalResourceCache().OnDestroyDevice();
     SAFE_DELETE( g_pTxtHelper );
 
-    SAFE_RELEASE( g_pVertexShader11 );
-    SAFE_RELEASE( g_pPixelShader11 );
-    SAFE_RELEASE( g_pLayout11 );
-    SAFE_RELEASE( g_pSamLinear );
-
     // Delete additional render resources here...
 	g_photo.OnD3D11DestroyDevice();
-	SAFE_RELEASE(g_pcbVS);
-	SAFE_RELEASE(g_pcbPS);
 }
 
 
@@ -487,7 +354,7 @@ void CALLBACK OnGUIEvent( UINT nEvent, int nControlID, CDXUTControl* pControl, v
             DXUTToggleWARP();
 			break;
 		case IDC_RELOADSHADER:
-			InitShader( g_pd3dDevice );
+			g_photo.InitShader();
 			break;
         case IDC_CHANGEDEVICE:
             g_SettingsDlg.SetActive( !g_SettingsDlg.IsActive() );
