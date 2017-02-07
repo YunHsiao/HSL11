@@ -29,6 +29,7 @@ CDXUTDialogResourceManager  g_DialogResourceManager; // manager for shared resou
 CD3DSettingsDlg             g_SettingsDlg;          // Device settings dialog
 CDXUTTextHelper*            g_pTxtHelper = nullptr;
 CDXUTDialog                 g_HUD;                  // dialog for standard controls
+ID3D11Device*				g_pd3dDevice;
 
 // Direct3D 11 resources
 ID3D11VertexShader*         g_pVertexShader11 = nullptr;
@@ -64,6 +65,7 @@ ID3D11Buffer* g_pcbPS = nullptr;
 #define IDC_TOGGLEREF           2
 #define IDC_CHANGEDEVICE        3
 #define IDC_TOGGLEWARP          4
+#define IDC_RELOADSHADER		5
 
 //--------------------------------------------------------------------------------------
 // Forward declarations 
@@ -149,6 +151,7 @@ void InitApp()
     g_HUD.AddButton( IDC_CHANGEDEVICE, L"Change device (F2)", 0, iY += iYo, 170, 22, VK_F2 );
     g_HUD.AddButton( IDC_TOGGLEREF, L"Toggle REF (F3)", 0, iY += iYo, 170, 22, VK_F3 );
     g_HUD.AddButton( IDC_TOGGLEWARP, L"Toggle WARP (F4)", 0, iY += iYo, 170, 22, VK_F4 );
+    g_HUD.AddButton( IDC_RELOADSHADER, L"Reload Shader (F5)", 0, iY += iYo, 170, 22, VK_F5 );
 }
 
 
@@ -176,6 +179,56 @@ bool CALLBACK IsD3D11DeviceAcceptable( const CD3D11EnumAdapterInfo *AdapterInfo,
     return true;
 }
 
+HRESULT InitShader( ID3D11Device* pd3dDevice )
+{
+	HRESULT hr;
+	SAFE_RELEASE(g_pVertexShader11);
+	SAFE_RELEASE(g_pPixelShader11);
+	SAFE_RELEASE(g_pLayout11);
+
+	// Read the HLSL file
+	// You should use the lowest possible shader profile for your shader to enable various feature levels. These
+	// shaders are simple enough to work well within the lowest possible profile, and will run on all feature levels
+
+	DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+#ifdef _DEBUG
+	// Disable optimizations to further improve shader debugging
+	dwShaderFlags |= D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+	ID3DBlob* pVertexShaderBuffer = nullptr;
+	V_RETURN(DXUTCompileFromFile(L"hsl.hlsl", nullptr, "RenderSceneVS", "vs_4_0_level_9_1", dwShaderFlags, 0,
+		&pVertexShaderBuffer));
+
+	ID3DBlob* pPixelShaderBuffer = nullptr;
+	V_RETURN(DXUTCompileFromFile(L"hsl.hlsl", nullptr, "RenderScenePS", "ps_4_0_level_9_3", dwShaderFlags, 0,
+		&pPixelShaderBuffer));
+
+	// Create the shaders
+	V_RETURN(pd3dDevice->CreateVertexShader(pVertexShaderBuffer->GetBufferPointer(),
+		pVertexShaderBuffer->GetBufferSize(), nullptr, &g_pVertexShader11));
+	DXUT_SetDebugName(g_pVertexShader11, "RenderSceneVS");
+
+	V_RETURN(pd3dDevice->CreatePixelShader(pPixelShaderBuffer->GetBufferPointer(),
+		pPixelShaderBuffer->GetBufferSize(), nullptr, &g_pPixelShader11));
+	DXUT_SetDebugName(g_pPixelShader11, "RenderScenePS");
+
+	// Create a layout for the object data
+	const D3D11_INPUT_ELEMENT_DESC layout[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	};
+
+	V_RETURN(pd3dDevice->CreateInputLayout(layout, ARRAYSIZE(layout), pVertexShaderBuffer->GetBufferPointer(),
+		pVertexShaderBuffer->GetBufferSize(), &g_pLayout11));
+	DXUT_SetDebugName(g_pLayout11, "Primary");
+
+	// No longer need the shader blobs
+	SAFE_RELEASE(pVertexShaderBuffer);
+	SAFE_RELEASE(pPixelShaderBuffer);
+
+	return S_OK;
+}
 
 //--------------------------------------------------------------------------------------
 // Create any D3D11 resources that aren't dependant on the back buffer
@@ -184,53 +237,14 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
                                      void* pUserContext )
 {
     HRESULT hr;
+	g_pd3dDevice = pd3dDevice;
 
     auto pd3dImmediateContext = DXUTGetD3D11DeviceContext();
     V_RETURN( g_DialogResourceManager.OnD3D11CreateDevice( pd3dDevice, pd3dImmediateContext ) );
     V_RETURN( g_SettingsDlg.OnD3D11CreateDevice( pd3dDevice ) );
     g_pTxtHelper = new CDXUTTextHelper( pd3dDevice, pd3dImmediateContext, &g_DialogResourceManager, 15 );
 
-    // Read the HLSL file
-    // You should use the lowest possible shader profile for your shader to enable various feature levels. These
-    // shaders are simple enough to work well within the lowest possible profile, and will run on all feature levels
-
-    DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
-#ifdef _DEBUG
-    // Disable optimizations to further improve shader debugging
-    dwShaderFlags |= D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-
-    ID3DBlob* pVertexShaderBuffer = nullptr;
-    V_RETURN( DXUTCompileFromFile( L"hsl.hlsl", nullptr, "RenderSceneVS", "vs_4_0_level_9_1", dwShaderFlags, 0,
-                                   &pVertexShaderBuffer ) );
-
-    ID3DBlob* pPixelShaderBuffer = nullptr;
-    V_RETURN( DXUTCompileFromFile( L"hsl.hlsl", nullptr, "RenderScenePS", "ps_4_0_level_9_3", dwShaderFlags, 0, 
-                                   &pPixelShaderBuffer ) );
-
-    // Create the shaders
-    V_RETURN( pd3dDevice->CreateVertexShader( pVertexShaderBuffer->GetBufferPointer(),
-                                              pVertexShaderBuffer->GetBufferSize(), nullptr, &g_pVertexShader11 ) );
-    DXUT_SetDebugName( g_pVertexShader11, "RenderSceneVS" );
-
-    V_RETURN( pd3dDevice->CreatePixelShader( pPixelShaderBuffer->GetBufferPointer(),
-                                             pPixelShaderBuffer->GetBufferSize(), nullptr, &g_pPixelShader11 ) );
-    DXUT_SetDebugName( g_pPixelShader11, "RenderScenePS" );
-
-    // Create a layout for the object data
-    const D3D11_INPUT_ELEMENT_DESC layout[] =
-    {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    };
-
-    V_RETURN( pd3dDevice->CreateInputLayout( layout, ARRAYSIZE( layout ), pVertexShaderBuffer->GetBufferPointer(),
-                                             pVertexShaderBuffer->GetBufferSize(), &g_pLayout11 ) );
-    DXUT_SetDebugName( g_pLayout11, "Primary" );
-
-    // No longer need the shader blobs
-    SAFE_RELEASE( pVertexShaderBuffer );
-    SAFE_RELEASE( pPixelShaderBuffer );
+	V_RETURN( InitShader( pd3dDevice ) );
 
     // Create state objects
     D3D11_SAMPLER_DESC samDesc;
@@ -464,16 +478,19 @@ void CALLBACK OnGUIEvent( UINT nEvent, int nControlID, CDXUTControl* pControl, v
     switch( nControlID )
     {
         case IDC_TOGGLEFULLSCREEN:
-            DXUTToggleFullScreen();
+			DXUTToggleFullScreen();
             break;
         case IDC_TOGGLEREF:
             DXUTToggleREF();
             break;
         case IDC_TOGGLEWARP:
             DXUTToggleWARP();
-            break;
+			break;
+		case IDC_RELOADSHADER:
+			InitShader( g_pd3dDevice );
+			break;
         case IDC_CHANGEDEVICE:
             g_SettingsDlg.SetActive( !g_SettingsDlg.IsActive() );
-            break;
+			break;
     }
 }

@@ -99,12 +99,12 @@ float4 RenderScenePS(VS_OUTPUT In) : SV_TARGET
     else if (hsl.x > threshold.z && hsl.x < threshold.w)
         blend = (threshold.w - hsl.x) * 12;
 
-     //float3 b = float3(step(threshold.x, threshold.w), step(threshold.x, hsl.x), step(hsl.x, threshold.w));
-     //float4 d = float4(step(threshold.x, hsl.x), step(hsl.x, threshold.y), step(threshold.z, hsl.x), step(hsl.x, threshold.w));
-     //float3 p = float3(all(d.xy), all(d.zw), any(!(d.xy)) && any(!(d.zw)));
-     //float3 q = float3((hsl.x - threshold.x) * 12.f, (threshold.w - hsl.x) * 12.f, 1.f);
-     //blend = float(all(b) || (!b.x && any(b.yz)));
-     //blend *= dot(p, q);
+    // float3 b = float3(step(threshold.x, threshold.w), step(threshold.x, hsl.x), step(hsl.x, threshold.w));
+    // float4 d = float4(step(threshold.x, hsl.x), step(hsl.x, threshold.y), step(threshold.z, hsl.x), step(hsl.x, threshold.w));
+    // float3 p = float3(all(d.xy), all(d.zw), any(!(d.xy)) && any(!(d.zw)));
+    // float3 q = float3((hsl.x - threshold.x) * 12.f, (threshold.w - hsl.x) * 12.f, 1.f);
+    // blend = float(all(b) || (!b.x && any(b.yz)));
+    // blend *= dot(p, q);
 
     curoff.xz *= blend;
     /* 1. inverse proportional */
@@ -125,16 +125,17 @@ float4 RenderScenePS(VS_OUTPUT In) : SV_TARGET
     {
         float diff = (max(max(c.r, c.g), c.b) - min(min(c.r, c.g), c.b)) * .5f;
         hsl.z += diff * curoff.z;
-        //hsl.y *= (1.f - abs(curoff.z));
-        //curoff.y = curoff.y - abs(curoff.z);
-        curoff.y = (curoff.y + 1.f) * (1.f - abs(curoff.z)) - 1.f;
+        // hsl.y *= (1.f - abs(curoff.z));
+        // curoff.y = clamp(curoff.y - abs(curoff.z) * 2.f, -1.f, 1.f);
+        // curoff.y = (curoff.y + 1.f) * (1.f - abs(curoff.z * step(1.f, blend))) - 1.f;
+        curoff.y = lerp(curoff.y, -abs(curoff.z), blend);
 
-        //if (curoff.z < 0.f)
-        //    c.rgb = c.rgb + curoff.z * (c.rgb - min(min(c.r, c.g), c.b));
-        //else
-        //    c.rgb = c.rgb + curoff.z * (max(max(c.r, c.g), c.b) - c.rgb);
-        //c = saturate(c);
-        //hsl.yz = RGB2HSL(c).yz;
+        // if (curoff.z < 0.f)
+        //     c.rgb = c.rgb + curoff.z * (c.rgb - min(min(c.r, c.g), c.b));
+        // else
+        //     c.rgb = c.rgb + curoff.z * (max(max(c.r, c.g), c.b) - c.rgb);
+        // c = saturate(c);
+        // hsl.yz = RGB2HSL(c).yz;
     }
 
     /** HUE **/
@@ -149,8 +150,7 @@ float4 RenderScenePS(VS_OUTPUT In) : SV_TARGET
     /* 2. linear increment *
     else hsl.y = saturate(hsl.y + curoff.y);
     /* 3. polynomial(cubic) morph to linear */
-    else
-        hsl.y = saturate(hsl.y + curoff.y * (hsl.y + curoff.y) * (hsl.y + curoff.y));
+    else hsl.y = saturate(hsl.y + curoff.y * (hsl.y + curoff.y) * (hsl.y + curoff.y));
     /* 4. polynomial(cubic) with exponential offset *
     else if (curoff.y > 0.f && hsl.y > 0.f) {
         hsl.y *= (8.88 * curoff.y * curoff.y * curoff.y - 4.357 * curoff.y * curoff.y + 1.93 * curoff.y + 1);
