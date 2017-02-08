@@ -41,6 +41,7 @@ UI							g_UI;
 #define IDC_CHANGEDEVICE        3
 #define IDC_TOGGLEWARP          4
 #define IDC_RELOADSHADER		5
+#define IDC_LOADTEXTURE			6
 
 //--------------------------------------------------------------------------------------
 // Forward declarations 
@@ -79,6 +80,8 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     _CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 #endif
 
+	DXUTSetIsInGammaCorrectMode(false);
+
     // DXUT will create and use the best device
     // that is available on the system depending on which D3D callbacks are set below
 
@@ -96,7 +99,7 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     DXUTSetCallbackD3D11FrameRender( OnD3D11FrameRender );
 
     InitApp();
-    DXUTInit( true, true, nullptr ); // Parse the command line, show msgboxes on error, no extra command line params
+	DXUTInit(true, true, nullptr); // Parse the command line, show msgboxes on error, no extra command line params
     DXUTSetCursorSettings( true, true );
     DXUTCreateWindow( L"HSL" );
 
@@ -127,6 +130,7 @@ void InitApp()
     g_HUD.AddButton( IDC_TOGGLEREF, L"Toggle REF (F3)", 0, iY += iYo, 170, 22, VK_F3 );
     g_HUD.AddButton( IDC_TOGGLEWARP, L"Toggle WARP (F4)", 0, iY += iYo, 170, 22, VK_F4 );
     g_HUD.AddButton( IDC_RELOADSHADER, L"Reload Shader (F5)", 0, iY += iYo, 170, 22, VK_F5 );
+    g_HUD.AddButton( IDC_LOADTEXTURE, L"Load Texture (F6)", 0, iY += iYo, 170, 22, VK_F6 );
 }
 
 
@@ -151,6 +155,9 @@ bool CALLBACK IsD3D11DeviceAcceptable( const CD3D11EnumAdapterInfo *AdapterInfo,
                                        const CD3D11EnumDeviceInfo *DeviceInfo,
                                        DXGI_FORMAT BackBufferFormat, bool bWindowed, void* pUserContext )
 {
+	if (BackBufferFormat == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+		return false;
+
     return true;
 }
 
@@ -355,6 +362,9 @@ void CALLBACK OnGUIEvent( UINT nEvent, int nControlID, CDXUTControl* pControl, v
 			break;
 		case IDC_RELOADSHADER:
 			g_photo.InitShader();
+			break;
+		case IDC_LOADTEXTURE:
+			g_photo.InitTexture();
 			break;
         case IDC_CHANGEDEVICE:
             g_SettingsDlg.SetActive( !g_SettingsDlg.IsActive() );

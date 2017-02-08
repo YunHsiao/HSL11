@@ -476,8 +476,8 @@ namespace
 
                     PropVariantClear( &value );
 
-                    if ( sRGB )
-                        format = MakeSRGB( format );
+                    //if ( sRGB )
+                    //    format = MakeSRGB( format );
                 }
             }
         }
