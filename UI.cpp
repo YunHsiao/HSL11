@@ -9,7 +9,7 @@ void UI::Init(CDXUTDialogResourceManager* pDialogResourceManager) {
 	s_UI.Init(pDialogResourceManager);
 	s_UI.SetCallback(UI::EventHandler); int iY = 10;
 
-	s_UI.AddComboBox(IDC_AREA, 0, iY, 200, 30, L'R');
+	s_UI.AddComboBox(IDC_AREA, 0, iY, 210, 30, L'R');
 	s_UI.GetComboBox(IDC_AREA)->AddItem(L"(R)ange: All colors", (void*)0);
 	s_UI.GetComboBox(IDC_AREA)->AddItem(L"(R)ange:        Red", (void*)1);
 	s_UI.GetComboBox(IDC_AREA)->AddItem(L"(R)ange:     Yellow", (void*)2);
@@ -18,21 +18,21 @@ void UI::Init(CDXUTDialogResourceManager* pDialogResourceManager) {
 	s_UI.GetComboBox(IDC_AREA)->AddItem(L"(R)ange:       Blue", (void*)5);
 	s_UI.GetComboBox(IDC_AREA)->AddItem(L"(R)ange:    Magenta", (void*)6);
 
-	s_UI.AddEditBox(IDE_HUE, TEXT("0"), 150, iY += 168, 50, 30);
+	s_UI.AddEditBox(IDE_HUE, TEXT("0"), 150, iY += 168, 60, 30);
 	s_UI.AddStatic(IDT_HUE, TEXT("Hue: "), 0, iY, 150, 20);
-	s_UI.AddSlider(IDS_HUE, 0, iY += 24, 200, 20, -180, 180, 0);
+	s_UI.AddSlider(IDS_HUE, 0, iY += 24, 210, 20, -180, 180, 0);
 
-	s_UI.AddEditBox(IDE_SATURATION, TEXT("0"), 150, iY += 24, 50, 30);
+	s_UI.AddEditBox(IDE_SATURATION, TEXT("0"), 150, iY += 24, 60, 30);
 	s_UI.AddStatic(IDT_SATURATION, TEXT("Saturation: "), 0, iY, 150, 20);
-	s_UI.AddSlider(IDS_SATURATION, 0, iY += 24, 200, 20, -100, 100, 0);
+	s_UI.AddSlider(IDS_SATURATION, 0, iY += 24, 210, 20, -100, 100, 0);
 
-	s_UI.AddEditBox(IDE_INTENSITY, TEXT("0"), 150, iY += 24, 50, 30);
+	s_UI.AddEditBox(IDE_INTENSITY, TEXT("0"), 150, iY += 24, 60, 30);
 	s_UI.AddStatic(IDT_INTENSITY, TEXT("Lightness: "), 0, iY, 150, 20);
-	s_UI.AddSlider(IDS_INTENSITY, 0, iY += 24, 200, 20, -100, 100, 0);
+	s_UI.AddSlider(IDS_INTENSITY, 0, iY += 24, 210, 20, -100, 100, 0);
 }
 
 void UI::Reset(const DXGI_SURFACE_DESC* pBackBufferSurfaceDesc) {
-	s_UI.SetLocation(pBackBufferSurfaceDesc->Width - 200,
+	s_UI.SetLocation(pBackBufferSurfaceDesc->Width - 220,
 		pBackBufferSurfaceDesc->Height - 350);
 	s_UI.SetSize(170, 300);
 }
@@ -62,7 +62,9 @@ void CALLBACK UI::EventHandler(UINT nEvent, int nControlID,
 		s_UI.GetEditBox(id)->SetText(str);
 	}
 	else if (nEvent == EVENT_EDITBOX_CHANGE) {
-		value = _wtoi(((CDXUTEditBox*)pControl)->GetText());
+		LPCWSTR ori = ((CDXUTEditBox*)pControl)->GetText();
+		value = _wtoi(ori);
+		if (ori[wcslen(ori) - 1] == '-') value = -value;
 		switch (nControlID)
 		{
 		case IDE_HUE:
