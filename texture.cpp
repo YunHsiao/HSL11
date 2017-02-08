@@ -4,13 +4,14 @@
 #include "SDKmisc.h"
 
 Texture::Texture() 
-: fileSelected(false)
-, m_pVertexShader11(nullptr)
-, m_pPixelShader11(nullptr)
-, m_pLayout11(nullptr)
-, m_pSamLinear(nullptr)
-, m_pcbVS(nullptr)
-, m_pcbPS(nullptr)
+	: m_pTextureRV(nullptr)
+	, m_pVB(nullptr)
+	, m_pVertexShader11(nullptr)
+	, m_pPixelShader11(nullptr)
+	, m_pLayout11(nullptr)
+	, m_pSamLinear(nullptr)
+	, m_pcbVS(nullptr)
+	, m_pcbPS(nullptr)
 {}
 
 void Texture::OnD3D11DestroyDevice() {
@@ -27,27 +28,10 @@ void Texture::OnD3D11DestroyDevice() {
 }
 
 HRESULT Texture::Init(ID3D11Device* pd3dDevice) {
-	/**/
-	if (!fileSelected) {
-		OPENFILENAME ofn;
-		ZeroMemory(&ofn, sizeof(ofn));
-		ofn.lStructSize = sizeof(ofn);
-		ofn.lpstrFile = m_pSrcFile;
-		ofn.lpstrFile[0] = 0;
-		ofn.lpstrFilter = TEXT("图片文件\0*.jpg;*.bmp;*.png;*.tif\0");
-		ofn.lpstrInitialDir = TEXT(".\\");
-		ofn.nMaxFile = MAX_PATH;
-		ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-		if (!GetOpenFileName(&ofn)) return S_OK;
-		fileSelected = true;
-	}
-	/**
-	swprintf_s(m_pSrcFile, MAX_PATH, L"media\\lena.png");
-	/**/
-
 	HRESULT hr;
 	m_pd3dDevice = pd3dDevice;
 	V_RETURN(InitShader());
+	V_RETURN(InitTexture());
 
 	// Create constant buffers
 	D3D11_BUFFER_DESC cbDesc;
@@ -64,10 +48,30 @@ HRESULT Texture::Init(ID3D11Device* pd3dDevice) {
 	V_RETURN(pd3dDevice->CreateBuffer(&cbDesc, nullptr, &m_pcbPS));
 	DXUT_SetDebugName(m_pcbPS, "CB_PS");
 
-	V_RETURN(DirectX::CreateWICTextureFromFileEx(pd3dDevice, nullptr, m_pSrcFile, 0,
-		D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, true,
+	return S_OK;
+}
+
+HRESULT Texture::InitTexture()
+{
+	/**/
+	OPENFILENAME ofn;
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.lpstrFile = m_pSrcFile;
+	ofn.lpstrFile[0] = 0;
+	ofn.lpstrFilter = TEXT("图片文件\0*.jpg;*.bmp;*.png;*.tif\0");
+	ofn.lpstrInitialDir = TEXT(".\\");
+	ofn.nMaxFile = MAX_PATH;
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+	if (!GetOpenFileName(&ofn)) return S_OK;
+
+	SAFE_RELEASE(m_pTextureRV);
+	SAFE_RELEASE(m_pVB);
+	HRESULT hr;
+	V_RETURN(DirectX::CreateWICTextureFromFileEx(m_pd3dDevice, nullptr, m_pSrcFile, 0,
+		D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, false,
 		nullptr, &m_pTextureRV));
-	
+
 	ID3D11Texture2D *texture2d = 0;
 	ID3D11Resource *res;
 	D3D11_TEXTURE2D_DESC desc;
@@ -82,9 +86,9 @@ HRESULT Texture::Init(ID3D11Device* pd3dDevice) {
 	SimpleVertex vertices[] =
 	{
 		{ DirectX::XMFLOAT3(-1.f, -y, 0.f), DirectX::XMFLOAT2(0.f, 1.f) },
-		{ DirectX::XMFLOAT3(-1.f,  y, 0.f), DirectX::XMFLOAT2(0.f, 0.f) },
-		{ DirectX::XMFLOAT3( 1.f, -y, 0.f), DirectX::XMFLOAT2(1.f, 1.f) },
-		{ DirectX::XMFLOAT3( 1.f,  y, 0.f), DirectX::XMFLOAT2(1.f, 0.f) }
+		{ DirectX::XMFLOAT3(-1.f, y, 0.f), DirectX::XMFLOAT2(0.f, 0.f) },
+		{ DirectX::XMFLOAT3(1.f, -y, 0.f), DirectX::XMFLOAT2(1.f, 1.f) },
+		{ DirectX::XMFLOAT3(1.f, y, 0.f), DirectX::XMFLOAT2(1.f, 0.f) }
 	};
 
 	D3D11_BUFFER_DESC bd;
@@ -96,7 +100,7 @@ HRESULT Texture::Init(ID3D11Device* pd3dDevice) {
 	D3D11_SUBRESOURCE_DATA InitData;
 	ZeroMemory(&InitData, sizeof(InitData));
 	InitData.pSysMem = vertices;
-	V_RETURN(pd3dDevice->CreateBuffer(&bd, &InitData, &m_pVB));
+	V_RETURN(m_pd3dDevice->CreateBuffer(&bd, &InitData, &m_pVB));
 	m_stride = sizeof(SimpleVertex);
 	m_offset = 0;
 	return S_OK;
@@ -130,11 +134,11 @@ HRESULT Texture::InitShader()
 	// Create the shaders
 	V_RETURN(m_pd3dDevice->CreateVertexShader(pVertexShaderBuffer->GetBufferPointer(),
 		pVertexShaderBuffer->GetBufferSize(), nullptr, &m_pVertexShader11));
-	DXUT_SetDebugName(g_pVertexShader11, "RenderSceneVS");
+	DXUT_SetDebugName(m_pVertexShader11, "RenderSceneVS");
 
 	V_RETURN(m_pd3dDevice->CreatePixelShader(pPixelShaderBuffer->GetBufferPointer(),
 		pPixelShaderBuffer->GetBufferSize(), nullptr, &m_pPixelShader11));
-	DXUT_SetDebugName(g_pPixelShader11, "RenderScenePS");
+	DXUT_SetDebugName(m_pPixelShader11, "RenderScenePS");
 
 	// Create a layout for the object data
 	const D3D11_INPUT_ELEMENT_DESC layout[] =
@@ -160,7 +164,7 @@ HRESULT Texture::InitShader()
 	samDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
 	samDesc.MaxLOD = D3D11_FLOAT32_MAX;
 	V_RETURN(m_pd3dDevice->CreateSamplerState(&samDesc, &m_pSamLinear));
-	DXUT_SetDebugName(g_pSamLinear, "Linear");
+	DXUT_SetDebugName(m_pSamLinear, "Linear");
 
 	return S_OK;
 }

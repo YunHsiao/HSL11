@@ -26,8 +26,8 @@ public:
 	HRESULT Render(ID3D11DeviceContext* pImmediateContext, DirectX::XMMATRIX& mWorldViewProjection, 
 		DirectX::XMFLOAT4& offset, DirectX::XMFLOAT4& threshold);
 	HRESULT InitShader();
+	HRESULT InitTexture();
 private:
-	bool fileSelected;
 	TCHAR m_pSrcFile[MAX_PATH];
 	ID3D11ShaderResourceView* m_pTextureRV;
 	ID3D11Buffer *m_pVB;

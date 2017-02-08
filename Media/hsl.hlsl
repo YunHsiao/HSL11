@@ -58,23 +58,11 @@ float4 HSL2RGB(float4 hsl)
     return float4(d * cc + hsl.z, hsl.a);
 }
 
-float4 SRGB2RGB(float4 srgb)
-{
-    float3 rgb = lerp(pow((srgb.rgb + .055f) / 1.055f, 2.4f), srgb.rgb / 12.92f, step(srgb.rgb, .04045f));
-    return float4(rgb, srgb.a);
-}
-
-float4 RGB2SRGB(float4 rgb)
-{
-    float3 srgb = lerp(pow(rgb.rgb, 1.f / 2.4f) * 1.055f - .055f, rgb.rgb * 12.92f, step(rgb.rgb, .00304f));
-    return float4(srgb, rgb.a);
-}
-
 float4 RenderScenePS(VS_OUTPUT In) : SV_TARGET
 {
     bool valid;
     float blend = 1.f, t;
-    float4 c = RGB2SRGB(g_txDiffuse.Sample(g_samLinear, In.TextureUV));
+    float4 c = g_txDiffuse.Sample(g_samLinear, In.TextureUV);
     /** LIGHTNESS: all colors **/
     if (threshold.x < 0.f)
     {
@@ -92,7 +80,7 @@ float4 RenderScenePS(VS_OUTPUT In) : SV_TARGET
     else
         valid = (hsl.x > threshold.x || hsl.x < threshold.w);
     if (!valid)
-        return SRGB2RGB(c);
+        return c;
     /* blend factor */
     if (hsl.x > threshold.x && hsl.x < threshold.y)
         blend = (hsl.x - threshold.x) * 12;
@@ -127,8 +115,8 @@ float4 RenderScenePS(VS_OUTPUT In) : SV_TARGET
         hsl.z += diff * curoff.z;
         // hsl.y *= (1.f - abs(curoff.z));
         // curoff.y = clamp(curoff.y - abs(curoff.z) * 2.f, -1.f, 1.f);
-        // curoff.y = (curoff.y + 1.f) * (1.f - abs(curoff.z * step(1.f, blend))) - 1.f;
-        curoff.y = lerp(curoff.y, -abs(curoff.z), blend);
+        curoff.y = (curoff.y + 1.f) * (1.f - abs(curoff.z * blend)) - 1.f;
+        // curoff.y = lerp(curoff.y, -abs(curoff.z), blend);
 
         // if (curoff.z < 0.f)
         //     c.rgb = c.rgb + curoff.z * (c.rgb - min(min(c.r, c.g), c.b));
@@ -159,5 +147,5 @@ float4 RenderScenePS(VS_OUTPUT In) : SV_TARGET
     hsl.y = saturate(hsl.y);
     /**/
     
-    return SRGB2RGB(HSL2RGB(hsl));
+    return HSL2RGB(hsl);
 }
