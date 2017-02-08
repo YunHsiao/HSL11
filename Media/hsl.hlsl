@@ -11,7 +11,7 @@ cbuffer cbPS : register(b1)
 }
 
 Texture2D    g_txDiffuse : register( t0 );
-SamplerState g_samLinear : register( s0 );
+SamplerState g_samPoint : register( s0 );
 
 struct VS_INPUT
 {
@@ -62,7 +62,7 @@ float4 RenderScenePS(VS_OUTPUT In) : SV_TARGET
 {
     bool valid;
     float blend = 1.f, t;
-    float4 c = g_txDiffuse.Sample(g_samLinear, In.TextureUV);
+    float4 c = g_txDiffuse.Sample(g_samPoint, In.TextureUV);
     /** LIGHTNESS: all colors **/
     if (threshold.x < 0.f)
     {

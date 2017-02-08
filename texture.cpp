@@ -9,7 +9,7 @@ Texture::Texture()
 	, m_pVertexShader11(nullptr)
 	, m_pPixelShader11(nullptr)
 	, m_pLayout11(nullptr)
-	, m_pSamLinear(nullptr)
+	, m_pSamPoint(nullptr)
 	, m_pcbVS(nullptr)
 	, m_pcbPS(nullptr)
 {}
@@ -21,7 +21,7 @@ void Texture::OnD3D11DestroyDevice() {
 	SAFE_RELEASE(m_pVertexShader11);
 	SAFE_RELEASE(m_pPixelShader11);
 	SAFE_RELEASE(m_pLayout11);
-	SAFE_RELEASE(m_pSamLinear);
+	SAFE_RELEASE(m_pSamPoint);
 
 	SAFE_RELEASE(m_pcbVS);
 	SAFE_RELEASE(m_pcbPS);
@@ -32,6 +32,15 @@ HRESULT Texture::Init(ID3D11Device* pd3dDevice) {
 	m_pd3dDevice = pd3dDevice;
 	V_RETURN(InitShader());
 	V_RETURN(InitTexture());
+
+	// Create state objects
+	D3D11_SAMPLER_DESC samDesc;
+	ZeroMemory(&samDesc, sizeof(samDesc));
+	samDesc.AddressU = samDesc.AddressV = samDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samDesc.MaxAnisotropy = 1;
+	samDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+	V_RETURN(m_pd3dDevice->CreateSamplerState(&samDesc, &m_pSamPoint));
+	DXUT_SetDebugName(m_pSamPoint, "Linear");
 
 	// Create constant buffers
 	D3D11_BUFFER_DESC cbDesc;
@@ -112,7 +121,6 @@ HRESULT Texture::InitShader()
 	SAFE_RELEASE(m_pVertexShader11);
 	SAFE_RELEASE(m_pPixelShader11);
 	SAFE_RELEASE(m_pLayout11);
-	SAFE_RELEASE(m_pSamLinear);
 
 	// Read the HLSL file
 	// You should use the lowest possible shader profile for your shader to enable various feature levels. These
@@ -155,17 +163,6 @@ HRESULT Texture::InitShader()
 	SAFE_RELEASE(pVertexShaderBuffer);
 	SAFE_RELEASE(pPixelShaderBuffer);
 
-	// Create state objects
-	D3D11_SAMPLER_DESC samDesc;
-	ZeroMemory(&samDesc, sizeof(samDesc));
-	samDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	samDesc.AddressU = samDesc.AddressV = samDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	samDesc.MaxAnisotropy = 1;
-	samDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
-	samDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	V_RETURN(m_pd3dDevice->CreateSamplerState(&samDesc, &m_pSamLinear));
-	DXUT_SetDebugName(m_pSamLinear, "Linear");
-
 	return S_OK;
 }
 
@@ -191,7 +188,7 @@ HRESULT Texture::Render(ID3D11DeviceContext* pd3dImmediateContext, DirectX::XMMA
 	pd3dImmediateContext->IASetInputLayout(m_pLayout11);
 	pd3dImmediateContext->VSSetShader(m_pVertexShader11, nullptr, 0);
 	pd3dImmediateContext->PSSetShader(m_pPixelShader11, nullptr, 0);
-	pd3dImmediateContext->PSSetSamplers(0, 1, &m_pSamLinear);
+	pd3dImmediateContext->PSSetSamplers(0, 1, &m_pSamPoint);
 
 	pd3dImmediateContext->IASetVertexBuffers(0, 1, &m_pVB, &m_stride, &m_offset);
 	pd3dImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);

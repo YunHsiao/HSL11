@@ -37,7 +37,7 @@ private:
 	ID3D11VertexShader* m_pVertexShader11;
 	ID3D11PixelShader* m_pPixelShader11;
 	ID3D11InputLayout* m_pLayout11;
-	ID3D11SamplerState* m_pSamLinear;
+	ID3D11SamplerState* m_pSamPoint;
 
 	ID3D11Buffer* m_pcbVS;
 	ID3D11Buffer* m_pcbPS;
